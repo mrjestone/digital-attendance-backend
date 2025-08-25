@@ -19,9 +19,7 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
 
     public AuthResponse register(RegisterRequest request) {
-        // STEP 1: Check if the user already exists
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
-            // If the Optional contains a user, throw an exception.
             throw new IllegalStateException("User with email " + request.getEmail() + " already exists.");
         }
 
@@ -34,9 +32,12 @@ public class AuthService {
                 .build();
         userRepository.save(user);
 
-        // For simplicity, we don't return a token on register, just success.
-        // A common alternative is to also log them in and return a token here.
-        return AuthResponse.builder().token(null).build(); // No token on register
+        // IMPROVEMENT: Automatically log the user in after registration
+        var jwtToken = jwtService.generateToken(user);
+        return AuthResponse.builder()
+                .token(jwtToken)
+                .user(user)
+                .build();
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -46,11 +47,16 @@ public class AuthService {
                         request.getPassword()
                 )
         );
-        // If the above line doesn't throw an exception, the user is authenticated.
+
         var user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(); // Should not happen if authenticated
+                .orElseThrow(() -> new IllegalStateException("User not found after successful authentication."));
 
         var jwtToken = jwtService.generateToken(user);
-        return AuthResponse.builder().token(jwtToken).build();
+
+        // UPDATED: Include the full user object in the response
+        return AuthResponse.builder()
+                .token(jwtToken)
+                .user(user)
+                .build();
     }
 }
